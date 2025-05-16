@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+#ddev-generated
+## Description: Flush all cache inside the Redis container
+## Usage: keydb-flush
+## Example: "ddev keydb-flush"
+
+keydb-cli -p 6379 -h keydb FLUSHALL ASYNC

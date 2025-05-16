@@ -2,5 +2,23 @@ name: keydb
 
 project_files:
   - docker-compose.keydb.yaml
+  - keydb/scripts/settings.ddev.keydb.php
+  - keydb/scripts/setup-drupal-settings.sh
+  - keydb/keydb.conf
+  - commands/keydb/keydb-cli
+  - commands/keydb/keydb-flush
 
 ddev_version_constraint: '>= v1.24.3'
+
+
+post_install_actions:
+- |
+  #ddev-nodisplay
+  #ddev-description:Install keydb settings for Drupal 9+ if applicable
+  keydb/scripts/setup-drupal-settings.sh
+
+removal_actions:
+- |
+  #ddev-nodisplay
+  #ddev-description:Remove keydb settings for Drupal 9+ if applicable
+  rm -f "${DDEV_APPROOT}/${DDEV_DOCROOT}/sites/default/settings.ddev.keydb.php"

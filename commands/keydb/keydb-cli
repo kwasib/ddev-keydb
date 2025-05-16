@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+#ddev-generated
+## Description: Run keydb-cli inside the Redis container
+## Usage: keydb-cli [flags] [args]
+## Example: "ddev keydb-cli KEYS *" or "ddev keydb-cli INFO" or "ddev keydb-cli --version"
+## Aliases: keydb
+
+
+keydb-cli -p 6379 -h keydb $@

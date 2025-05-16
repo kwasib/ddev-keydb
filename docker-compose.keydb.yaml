@@ -3,14 +3,20 @@
 services:
   keydb:
     container_name: ddev-${DDEV_SITENAME}-keydb
-    image: ${KEYDB_DOCKER_IMAGE:-busybox:stable}
-    command: tail -f /dev/null
-    restart: "no"
+    image: ${KEYDB_DOCKER_IMAGE:-eqalpha/keydb:latest}
     # These labels ensure this service is discoverable by DDEV.
     labels:
       com.ddev.site-name: ${DDEV_SITENAME}
       com.ddev.approot: ${DDEV_APPROOT}
-
+    restart: "no"
+    expose:
+      - 6379
     volumes:
       - ".:/mnt/ddev_config"
       - "ddev-global-cache:/mnt/ddev-global-cache"
+      - "./keydb:/etc/keydb/conf"
+      - "keydb:/data"
+    command: ["keydb-server", "/etc/keydb/conf/keydb.conf"]
+
+volumes:
+  keydb:

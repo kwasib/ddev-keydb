@@ -34,22 +34,69 @@ setup() {
   cd "${TESTDIR}"
   run ddev config --project-name="${PROJNAME}" --project-tld=ddev.site
   assert_success
-  run ddev start -y
-  assert_success
+
+  export REDIS_MAJOR_VERSION=6
+  export HAS_DRUPAL_SETTINGS=false
+  export HAS_OPTIMIZED_CONFIG=false
+  export RUN_BGSAVE=false
 }
 
 health_checks() {
-  # Do something useful here that verifies the add-on
-
-  # You can check for specific information in headers:
-  # run curl -sfI https://${PROJNAME}.ddev.site
-  # assert_output --partial "HTTP/2 200"
-  # assert_output --partial "test_header"
-
-  # Or check if some command gives expected output:
-  DDEV_DEBUG=true run ddev launch
+  run ddev keydb-cli INFO
   assert_success
-  assert_output --partial "FULLURL https://${PROJNAME}.ddev.site"
+  assert_output --partial "redis_version:$REDIS_MAJOR_VERSION."
+
+  if [ "${HAS_DRUPAL_SETTINGS}" = "true" ]; then
+    assert_file_exist web/sites/default/settings.ddev.keydb.php
+
+    run grep -F "settings.ddev.keydb.php" web/sites/default/settings.php
+    assert_success
+  else
+    assert_file_not_exist web/sites/default/settings.ddev.keydb.php
+  fi
+
+  assert_file_exist .ddev/keydb/keydb.conf
+
+  run ddev keydb-cli "KEYS \*"
+  assert_success
+  assert_output ""
+
+  # populate 10000 keys
+  echo '' > keys.txt
+  run bash -c 'for i in {1..10000}; do echo "SET testkey-$i $i" >> keys.txt; done'
+  assert_success
+  run bash -c "cat keys.txt | ddev keydb --pipe"
+  assert_success
+  assert_line --index 2 "errors: 0, replies: 10000"
+
+  if [ "${RUN_BGSAVE}" != "true" ]; then
+    return
+  fi
+
+  # Trigger a BGSAVE
+  run ddev keydb BGSAVE
+  assert_success
+  assert_output "Background saving started"
+
+  sleep 10
+
+  run ddev stop
+  assert_success
+
+  run ddev start -y
+  assert_success
+
+  run ddev keydb DBSIZE
+  assert_success
+  assert_output "10000"
+
+  run ddev keydb-flush
+  assert_success
+  assert_output "OK"
+
+  run ddev keydb DBSIZE
+  assert_success
+  assert_output "0"
 }
 
 teardown() {
@@ -60,9 +107,16 @@ teardown() {
 
 @test "install from directory" {
   set -eu -o pipefail
+
+  export RUN_BGSAVE=true
+
+  run ddev start -y
+  assert_success
+
   echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
   run ddev add-on get "${DIR}"
   assert_success
+
   run ddev restart -y
   assert_success
   health_checks
@@ -71,9 +125,111 @@ teardown() {
 # bats test_tags=release
 @test "install from release" {
   set -eu -o pipefail
+  run ddev start -y
+  assert_success
+
   echo "# ddev add-on get ${GITHUB_REPO} with project ${PROJNAME} in $(pwd)" >&3
   run ddev add-on get "${GITHUB_REPO}"
   assert_success
+
+  run ddev restart -y
+  assert_success
+  health_checks
+}
+
+# bats test_tags=optimized
+@test "install from directory with optimized config" {
+  set -eu -o pipefail
+
+  export HAS_OPTIMIZED_CONFIG=true
+  export RUN_BGSAVE=true
+
+  run ddev start -y
+  assert_success
+
+  run ddev dotenv set .ddev/.env.keydb --keydb-optimized=true
+  assert_success
+  assert_file_exist .ddev/.env.keydb
+
+  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
+  run ddev restart -y
+  assert_success
+  health_checks
+}
+
+@test "Drupal installation" {
+  set -eu -o pipefail
+
+  export HAS_DRUPAL_SETTINGS=true
+
+  run ddev config --project-type=drupal --docroot=web
+  assert_success
+  run ddev start -y
+  assert_success
+
+  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
+  run ddev restart -y
+  assert_success
+  health_checks
+}
+
+@test "Laravel installation" {
+  set -eu -o pipefail
+
+  run ddev config --project-type=laravel --docroot=web
+  assert_success
+  run ddev start -y
+  assert_success
+
+  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
+  run ddev restart -y
+  assert_success
+  health_checks
+}
+
+@test "Drupal 7 installation" {
+  set -eu -o pipefail
+
+  # Drupal configuration should not be present in Drupal 7
+  export HAS_DRUPAL_SETTINGS=false
+
+  run ddev config --project-type=drupal7 --docroot=web
+  assert_success
+  run ddev start -y
+  assert_success
+
+  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
+  run ddev restart -y
+  assert_success
+  health_checks
+}
+
+@test "Drupal installation without settings management" {
+  set -eu -o pipefail
+
+  export HAS_DRUPAL_SETTINGS=false
+
+  run ddev config --disable-settings-management --project-type=drupal --docroot=web
+  assert_success
+  run ddev start -y
+  assert_success
+
+  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
+  run ddev add-on get "${DIR}"
+  assert_success
+
   run ddev restart -y
   assert_success
   health_checks
