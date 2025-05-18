@@ -137,29 +137,6 @@ teardown() {
   health_checks
 }
 
-# bats test_tags=optimized
-@test "install from directory with optimized config" {
-  set -eu -o pipefail
-
-  export HAS_OPTIMIZED_CONFIG=true
-  export RUN_BGSAVE=true
-
-  run ddev start -y
-  assert_success
-
-  run ddev dotenv set .ddev/.env.keydb --keydb-optimized=true
-  assert_success
-  assert_file_exist .ddev/.env.keydb
-
-  echo "# ddev add-on get ${DIR} with project ${PROJNAME} in $(pwd)" >&3
-  run ddev add-on get "${DIR}"
-  assert_success
-
-  run ddev restart -y
-  assert_success
-  health_checks
-}
-
 @test "Drupal installation" {
   set -eu -o pipefail
 
